@@ -1,0 +1,612 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.1 Transitional//EN">
+<html><head><meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+
+    <meta name="robots" content="noindex, nofollow">
+    <meta name="googlebot" content="noindex, nofollow">
+
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js" integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8=" crossorigin="anonymous"></script>
+    <script>
+
+    var g_jsondata;
+    var g_searchkey;
+    var g_columnlist = [];
+    var g_selectedColumns = [];
+
+    var JSONBrowser = {
+      displayTextForEmptyEntry : "__none",
+      bEncode : true,
+      bDecode : false,
+      logLevel : 1,
+      oData : g_jsondata,
+      debug : function(mesg) {
+        if (this.logLevel == 1) {
+          console.log("debug: "+mesg);
+        }
+      },
+      isArray : function(tobeChecked) {
+        return tobeChecked && typeof tobeChecked === 'object' && tobeChecked.constructor === Array;
+      },
+      getChildren : function(sPath) {
+
+      }
+
+      getBranch : function(path) {
+
+        var aPath, i;
+        if (typeof path == "string" || path instanceof String) {
+          aPath = path.split("|");
+        } else {
+          if (isArray(path)) {
+            aPath = path;
+          }
+        }
+        if (aPath) {
+          for (i=0; i<aPath.length; i++) {
+
+          }
+        }
+      },
+      addBranch : function(path, value) {
+        var oData = g_jsondata;
+
+      }
+
+    };
+
+window.onload = function() {
+
+  // app starting
+  g_searchkey = false;
+  $("#data").hide();
+  $("#s_save").hide();
+  var oURL=new URL(window.location.href);
+  var page=oURL.searchParams.get("page");
+  if(page&&page=="edit") {
+    $("#main").hide();
+    $("#header").hide();
+    $("#loader").text("Edit");
+    $("#edit").show();
+    $("#f").hide();
+  } else {
+    $("#main").show();
+    $("#header").show();
+    $("#loader").hide();
+    $("#edit").hide();
+    $("#f").show();
+    $("#title").trigger('click');
+  }
+
+  $("#title").click(function() {
+    $("#main").show();
+    $("#main").empty();
+    $("#header").show();
+    $("#loader").hide();
+    $("#edit").hide();
+    $("#f").show();
+    prepareColumnList();
+    showSelectableColumns();
+    buildJSON(g_searchkey);
+    //showResults();
+    putItem("main");
+    g_searchkey = false;
+  });
+
+  $("#f_submit").click(function() {
+    var search = $("#f_search").val();
+    search = search.trim();
+    if (search.length>0) {
+      g_searchkey = search;
+      $("#title").trigger('click');
+    }
+  });
+
+  $("#f_replace").click(function() {
+    g_jsondata = {}
+    $("#title").text($("#f_title").val());
+    $("#s_save").show();
+    $("#data").text(LZString.compressToUTF16($("#f_editarea").val()));
+    $("#f").show();
+    $("#title").trigger('click');
+  });
+
+  $("#f_save").click(function() {
+    $("#main").hide();
+    $("#f").hide();
+    $("#s_save").hide();
+  });
+
+  $("#f_clearselectedcols").click(function() {
+    $("#main").empty();
+    g_selectedColumns = [];
+    showSelectableColumns();
+    $("#title").trigger('click');
+  });
+}
+
+function showSelectableColumns() {
+  var s_temp="";
+  var bNone;
+  for (var i=0; i<g_columnlist.length; i++) {
+    bNone = true;
+    for (var j=0; j<g_selectedColumns.length; j++) {
+      if (i==g_selectedColumns[j]) {
+        bNone=false;
+      }
+    }
+    if (bNone) {
+      s_temp = s_temp + "<span class='column'>" + g_columnlist[i] +"</span>";
+    }
+  }
+  $("#s_cols").html(s_temp);
+  s_temp = "";
+  for (i=0; i<g_selectedColumns.length; i++) {
+    s_temp= s_temp + "<span class='selectedcolumn'>" + g_columnlist[g_selectedColumns[i]] + "</span>";
+  }
+  $("#s_selectedcols").html(s_temp);
+}
+
+function prepareColumnList() {
+    var temp = LZString.decompressFromUTF16($("#data").text());
+    var a_rows = temp.split('\n');
+    if (a_rows.length>0) {
+      if (a_rows[0].indexOf("|")>0) {
+        g_columnlist = a_rows[0].split('|');
+      } else {
+        g_columnlist = a_rows[0].split('\t');
+      }
+      for (var i=0; i<g_columnlist.length;i++) {
+        g_columnlist[i] = g_columnlist[i].replace(/\t/g, '').trim();
+      }
+    } else {
+      g_columnlist = {};
+    }
+}
+
+// ucs-2 string to base64 encoded ascii
+function utoa(str) {
+    return window.btoa(unescape(encodeURIComponent(str)));
+}
+// base64 encoded ascii to ucs-2 string
+function atou(str) {
+    return decodeURIComponent(escape(window.atob(str)));
+}
+
+function getDivID(key, direction = JSONBrowser.bEncode) {
+  //ID_cleanbase64
+  var sStr;
+  if (direction == JSONBrowser.bEncode) {
+    sStr = utoa(key);
+    sStr = sStr.replace(/\+/g, '-').replace(/\//g, '_').replace(/\=+$/, '');
+    return "ID_" + sStr; // encode
+  } else {
+    sStr = key.substr(3);
+    if (sStr.length % 4 != 0) {
+      sStr += ('===').slice(0, 4 - (sStr.length % 4));
+    }
+    sStr = sStr.replace(/-/g, '+').replace(/_/g, '/');
+    return atou(sStr); // decode
+  }
+}
+
+function buildJSON(searchkey = false) {
+
+    var i_depth = g_selectedColumns.length;
+    var temp= LZString.decompressFromUTF16($("#data").text());
+    var a_rows = temp.split('\n');
+    temp=undefined;
+    var a_colheads = g_columnlist;
+    var t_key, a_actrow, t_obj;
+    var fArrCons = [].constructor;
+    var a_tempArray;
+
+    if (i_depth>0) { // van struktúraképző elem kiválasztva
+      if ((searchkey != false) && ($("#f_newsearch").is(":checked"))) {
+        a_tempArray = g_jsondata;
+      } else {
+        a_tempArray = {};
+      }
+      for (var i=1; i<a_rows.length; i++ ) {
+
+        if ((a_rows[i].trim().length>0) && ((a_rows[i].indexOf("|")>0) || (a_rows[i].trim().indexOf("\t")>0))) {
+          if ((searchkey == false) || (a_rows[i].indexOf(searchkey)>-1)) {
+            if (a_rows[i].indexOf("|")>0) {
+              a_actrow = a_rows[i].split("|");
+            } else {
+              a_actrow = a_rows[i].split("\t");
+            }
+
+            t_obj = a_tempArray;
+
+            for (var j=0; j<i_depth; j++) {
+              t_key = a_actrow[g_selectedColumns[j]].replace(/\t/g, '').trim();
+
+              if (t_key == "") {
+                t_key = JSONBrowser.displayTextForEmptyEntry;
+              }
+              if (t_obj.hasOwnProperty(t_key)){
+                t_obj=t_obj[t_key];
+              } else {
+                if (j==i_depth-1) {
+                  t_obj[t_key] = [];
+                } else {
+                  t_obj[t_key] = {};
+                }
+                t_obj=t_obj[t_key];
+              }
+            }
+
+            var a_temp2 = new Array(a_colheads.length);
+
+            for (j=0; j<a_colheads.length; j++) {
+              a_temp2[j] = a_actrow[j].replace(/\t/g, '').trim();
+            }
+            t_obj.push(a_temp2);
+          }
+        }
+      }
+    } else { // nincs oszlop kiválasztva, csak táblázat
+      if ((searchkey != false) && ($("#f_newsearch").is(":checked"))) {
+        a_tempArray = g_jsondata;
+      }
+      else {
+        a_tempArray = [];
+      }
+      var a_temp = [];
+
+      for (var i=1; i<a_rows.length; i++ ) {
+        a_temp = [];
+        if ((a_rows[i].trim().length>0) && ((a_rows[i].indexOf("|")>0) || (a_rows[i].trim().indexOf("\t")>0))) {
+
+          if ((searchkey == false) || (a_rows[i].indexOf(searchkey)>-1)) {
+            if (a_rows[i].indexOf("|")>0) {
+              a_actrow = a_rows[i].split("|");
+            } else {
+              a_actrow = a_rows[i].split("\t");
+            }
+            for (j=0; j<a_colheads.length; j++) {
+              a_temp.push( a_actrow[j].replace(/\t/g,'').trim());
+            }
+            a_tempArray.push(a_temp);
+          }
+        }
+      }
+    }
+    g_jsondata = a_tempArray;
+
+}
+
+function putItem(sContainerID) {
+
+  var key = $('#' + sContainerID).attr("key");
+
+  if (key.trim().length>0) {  // else: nothing to do
+    var a_hierarchyKeys = key.trim().split("|");
+    var out;
+    var t_key;
+    var t_obj = g_jsondata;
+    var i, j, k, l;
+    var fArrayCons = [].constructor;
+
+    for (i=0, j=a_hierarchyKeys.length; i<j; i++) {
+      t_key = a_hierarchyKeys[i];
+      if (t_obj.hasOwnProperty(t_key)) { // if there is an item at level 'i'
+        if (t_obj.constructor === fArrayCons) {
+          // childs are in array at level 'i' (no more branch)
+        } else {
+          // to the next branch
+          t_obj = t_obj[t_key];
+        }
+      }
+    } // we have now the path in the JSON
+
+    if (t_obj.constructor === fArrayCons) {
+      out = "<table><tr>";
+      for (i=0, j=g_columnlist.length; i<j; i++) {
+        out = out + "<th>" + g_columnlist[i] +"</th>";
+      }
+      for (i=0, k=t_obj.length; i<k; i++) {
+        out = out + "</tr><tr>";
+        for (j=0, l=g_columnlist.length; j<l; j++) {
+          out = out + "<td><span class='cell'>" + t_obj[i][j] + "</span></td>";
+        }
+      }
+      out = out +"</tr></table>";
+      $('#' + sContainerID).append($('<div id="'+sContainerID+'_table" key="'+key+'_table">'));
+      var appendedDiv = $(document.getElementById(sContainerID+"_table"));
+      appendedDiv.html(out);
+    } else {
+      var lastOnBranch;
+      var cleankey;
+      var key2, tkey;
+
+      for (var key2 in t_obj) {
+        if (t_obj.hasOwnProperty(key2)) {
+          // JSONBrowser.debug(key2 + " :: " + JSON.stringify(t_obj));
+          if (t_obj[key2].constructor !== fArrayCons) {//ág
+            out = '<span class="structitem">'+key2+'</span>';
+            lastOnBranch = false;
+          } else {
+            out = '<span class="structitem">'+key2+'</span>';
+            lastOnBranch = true;
+          }
+          //key2.replace(/[^a-zA-Z0-9|]/g, "_")
+          cleankey = getDivID(key == "__none" ? key2 : key + "|" + key2);
+          tkey = key == "__none" ? key2 : key + "|" + key2
+
+          if (lastOnBranch) {
+            $('#' + sContainerID).append($('<div id="'+cleankey+'" key="' + tkey +'" class="leaf" >'));
+          } else {
+            $('#' + sContainerID).append($('<div id="'+cleankey+'" key="'+ tkey +'" class="branch" >'));
+          }
+          //$("#"+cleankey).html(out);
+          var appendedDiv = $(document.getElementById(cleankey));
+          appendedDiv.html(out);
+
+        }
+      }
+    }
+  }
+
+//  }
+
+}
+
+$(document).on('click', ".selectedcolumn", function(e) {
+  var sColumn = $(this).text();
+  var aTemp = [];
+  for (var i=0, j=g_selectedColumns.length; i<j; i++) {
+    if (g_columnlist[g_selectedColumns[i]] == sColumn) {
+    } else {
+      aTemp.push(g_selectedColumns[i]);
+    }
+  }
+  g_selectedColumns = aTemp;
+  $("#main").empty();
+  g_jsondata = undefined;
+  g_jsondata = [];
+  showSelectableColumns();
+  buildJSON(g_searchkey);
+  putItem("main");
+});
+
+$(document).on("click", ".column", function(e) {
+  var t_string = $(this).text();
+  for (var i=0, j=g_columnlist.length; i<j; i++) {
+    if (g_columnlist[i] == t_string) {
+      g_selectedColumns.push(i);
+    }
+  }
+  $("#title").trigger("click");  // not optimal - put in separate function
+});
+
+$(document).on("click", ".leaf, .branch", function(e) {
+  if (e.target === this) {
+    if  ($(this).children().length==1) {
+      putItem($(this).attr("id"));
+    } else {
+      var a_ch = $(this).children();
+      for (var i=1, j=a_ch.length; i<j; i++) {
+        a_ch[i].remove();
+      }
+    }
+  }
+});
+
+$(document).on("dblclick", "span.structitem, span.cell", function() {
+  $(this).attr('contentEditable', true);
+  $(this).attr('previousValue', $(this).text());
+});
+$(document).on("click", "div, span, td", function(e) {
+  var vAttr = $(this).attr('contentEditable');
+  if (e.target === this) {
+    if (vAttr) {
+      // nothing to do
+    } else {
+      // blur & cancel edit
+      $("span.structitem").removeAttr("contentEditable");
+      $("[previousValue]").text($("[previousValue]").attr("previousValue"));
+      $("[previousValue]").removeAttr("previousValue");
+    }
+  }
+});
+
+$(document).on("keydown", "[contentEditable]", function(e) {
+
+  if (e.which == 13 ) {  //blur & accept changes
+    var aActRowOld = [];
+    var aActRowNew = [];
+    var i,j,tObjOld,tObjNew,sTempKey
+    var fArrayCons = [].constructor;
+
+    if ($(this).parent().prop("tagName") == ("DIV")) {
+      aActRowOld = $(this).parent().attr("key").split("|");
+      aActRowNew = $(this).parent().attr("key").split("|");
+      aActRowNew[aActRowNew.length-1] = $(this).text();
+      /*
+      Egész ágat módosítunk:
+      1. megkeressük a régi ágat
+      2. létrehozzuk az új ágat
+      3. hozzáadjuk a régi ágon levő item-eket
+      4. update-eljük az item-eket
+      */
+
+      tObjOld = g_jsondata;
+      for (i=0; i<aActRowOld.length-1; i++) {
+        sTempKey = aActRowOld[i];
+        if (tObjOld.hasOwnProperty(sTempKey)) {
+          tObjOld = tObjOld[sTempKey];
+        }
+      }
+      tObjNew = g_jsondata;
+      for (i=0; i<aActRowNew.length-1; i++) {
+        sTempKey = aActRowNew[i];
+        if (tObjNew.hasOwnProperty(sTempKey)) {
+          tObjNew = tObjNew[sTempKey];
+        }
+      }
+
+      sTempKey = aActRowNew[aActRowNew.length-1];
+      JSONBrowser.debug(sTempKey);
+      tObjNew[sTempKey] = {};
+      tObjNew[sTempKey] = tObjOld;
+      JSONBrowser.debug(JSON.stringify(tObjNew));
+
+      /*
+      if (tObj.hasOwnProperty(aActRowNew[aActRowNew.length-1])) {
+        if (tObj[aActRowNew[aActRowNew.length-1]].constructor === fArrayCons) {
+          tObj[aActRowNew[aActRowNew.length-1]] = tObj[aActRowOld[aActRowOld.length-1]].concat(tObj[aActRowNew[aActRowNew.length-1]]);
+          delete tObj[aActRowOld[aActRowOld.length-1]];
+        } else {
+          // a hierarchiában feljebb levő elemet módosított
+          JSONBrowser.debug("problem problem");
+          JSONBrowser.debug(JSON.stringify(aActRowNew));
+          JSONBrowser.debug(JSON.stringify(aActRowOld));
+        }
+      } else {
+        tObj[aActRowNew[aActRowNew.length-1]] = tObj[aActRowOld[aActRowOld.length-1]];
+        delete tObj[aActRowOld[aActRowOld.length-1]];
+      }
+      JSONBrowser.debug(JSON.stringify(tObj));
+      for (i=0; i<tObj[aActRowNew[aActRowNew.length-1]].length; i++) {
+        tObj[aActRowNew[aActRowNew.length-1]][i][aActRowNew.length-1] = aActRowNew[aActRowNew.length-1];
+      }
+      */
+    }
+    if ($(this).parent().prop("tagName") == ("TD")) {
+      // span > TD > TR > TABLE > DIV
+
+      for (var i=1; i<=g_columnlist.length; i++) {
+        aActRowNew.push($(this).parent().parent().find("td:nth-child("+i+")").text());
+        if ($(this).parent().parent().find("td:nth-child("+i+")").find("span").attr("previousValue")) {
+          aActRowOld.push($(this).parent().parent().find("td:nth-child("+i+")").find("span").attr("previousValue"));
+        } else {
+          aActRowOld.push($(this).parent().parent().find("td:nth-child("+i+")").text());
+        }
+
+      }
+    }
+
+
+    JSONBrowser.debug($(this).parent().prop("tagName"));
+
+    $(this).removeAttr("contentEditable");
+    $(this).removeAttr("previousValue");
+
+  }
+  if (e.which == 27) { //blur and cancel edit
+    $(this).removeAttr("contentEditable");
+    $(this).text($(this).attr("previousValue"));
+    $(this).removeAttr("previousValue");
+  }
+});
+
+
+
+var LZString=function(){function o(o,r){if(!t[o]){t[o]={};for(var n=0;n<o.length;n++)t[o][o.charAt(n)]=n}return t[o][r]}var r=String.fromCharCode,n="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/=",e="ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-$",t={},i={compressToBase64:function(o){if(null==o)return"";var r=i._compress(o,6,function(o){return n.charAt(o)});switch(r.length%4){default:case 0:return r;case 1:return r+"===";case 2:return r+"==";case 3:return r+"="}},decompressFromBase64:function(r){return null==r?"":""==r?null:i._decompress(r.length,32,function(e){return o(n,r.charAt(e))})},compressToUTF16:function(o){return null==o?"":i._compress(o,15,function(o){return r(o+32)})+" "},decompressFromUTF16:function(o){return null==o?"":""==o?null:i._decompress(o.length,16384,function(r){return o.charCodeAt(r)-32})},compressToUint8Array:function(o){for(var r=i.compress(o),n=new Uint8Array(2*r.length),e=0,t=r.length;t>e;e++){var s=r.charCodeAt(e);n[2*e]=s>>>8,n[2*e+1]=s%256}return n},decompressFromUint8Array:function(o){if(null===o||void 0===o)return i.decompress(o);for(var n=new Array(o.length/2),e=0,t=n.length;t>e;e++)n[e]=256*o[2*e]+o[2*e+1];var s=[];return n.forEach(function(o){s.push(r(o))}),i.decompress(s.join(""))},compressToEncodedURIComponent:function(o){return null==o?"":i._compress(o,6,function(o){return e.charAt(o)})},decompressFromEncodedURIComponent:function(r){return null==r?"":""==r?null:(r=r.replace(/ /g,"+"),i._decompress(r.length,32,function(n){return o(e,r.charAt(n))}))},compress:function(o){return i._compress(o,16,function(o){return r(o)})},_compress:function(o,r,n){if(null==o)return"";var e,t,i,s={},p={},u="",c="",a="",l=2,f=3,h=2,d=[],m=0,v=0;for(i=0;i<o.length;i+=1)if(u=o.charAt(i),Object.prototype.hasOwnProperty.call(s,u)||(s[u]=f++,p[u]=!0),c=a+u,Object.prototype.hasOwnProperty.call(s,c))a=c;else{if(Object.prototype.hasOwnProperty.call(p,a)){if(a.charCodeAt(0)<256){for(e=0;h>e;e++)m<<=1,v==r-1?(v=0,d.push(n(m)),m=0):v++;for(t=a.charCodeAt(0),e=0;8>e;e++)m=m<<1|1&t,v==r-1?(v=0,d.push(n(m)),m=0):v++,t>>=1}else{for(t=1,e=0;h>e;e++)m=m<<1|t,v==r-1?(v=0,d.push(n(m)),m=0):v++,t=0;for(t=a.charCodeAt(0),e=0;16>e;e++)m=m<<1|1&t,v==r-1?(v=0,d.push(n(m)),m=0):v++,t>>=1}l--,0==l&&(l=Math.pow(2,h),h++),delete p[a]}else for(t=s[a],e=0;h>e;e++)m=m<<1|1&t,v==r-1?(v=0,d.push(n(m)),m=0):v++,t>>=1;l--,0==l&&(l=Math.pow(2,h),h++),s[c]=f++,a=String(u)}if(""!==a){if(Object.prototype.hasOwnProperty.call(p,a)){if(a.charCodeAt(0)<256){for(e=0;h>e;e++)m<<=1,v==r-1?(v=0,d.push(n(m)),m=0):v++;for(t=a.charCodeAt(0),e=0;8>e;e++)m=m<<1|1&t,v==r-1?(v=0,d.push(n(m)),m=0):v++,t>>=1}else{for(t=1,e=0;h>e;e++)m=m<<1|t,v==r-1?(v=0,d.push(n(m)),m=0):v++,t=0;for(t=a.charCodeAt(0),e=0;16>e;e++)m=m<<1|1&t,v==r-1?(v=0,d.push(n(m)),m=0):v++,t>>=1}l--,0==l&&(l=Math.pow(2,h),h++),delete p[a]}else for(t=s[a],e=0;h>e;e++)m=m<<1|1&t,v==r-1?(v=0,d.push(n(m)),m=0):v++,t>>=1;l--,0==l&&(l=Math.pow(2,h),h++)}for(t=2,e=0;h>e;e++)m=m<<1|1&t,v==r-1?(v=0,d.push(n(m)),m=0):v++,t>>=1;for(;;){if(m<<=1,v==r-1){d.push(n(m));break}v++}return d.join("")},decompress:function(o){return null==o?"":""==o?null:i._decompress(o.length,32768,function(r){return o.charCodeAt(r)})},_decompress:function(o,n,e){var t,i,s,p,u,c,a,l,f=[],h=4,d=4,m=3,v="",w=[],A={val:e(0),position:n,index:1};for(i=0;3>i;i+=1)f[i]=i;for(p=0,c=Math.pow(2,2),a=1;a!=c;)u=A.val&A.position,A.position>>=1,0==A.position&&(A.position=n,A.val=e(A.index++)),p|=(u>0?1:0)*a,a<<=1;switch(t=p){case 0:for(p=0,c=Math.pow(2,8),a=1;a!=c;)u=A.val&A.position,A.position>>=1,0==A.position&&(A.position=n,A.val=e(A.index++)),p|=(u>0?1:0)*a,a<<=1;l=r(p);break;case 1:for(p=0,c=Math.pow(2,16),a=1;a!=c;)u=A.val&A.position,A.position>>=1,0==A.position&&(A.position=n,A.val=e(A.index++)),p|=(u>0?1:0)*a,a<<=1;l=r(p);break;case 2:return""}for(f[3]=l,s=l,w.push(l);;){if(A.index>o)return"";for(p=0,c=Math.pow(2,m),a=1;a!=c;)u=A.val&A.position,A.position>>=1,0==A.position&&(A.position=n,A.val=e(A.index++)),p|=(u>0?1:0)*a,a<<=1;switch(l=p){case 0:for(p=0,c=Math.pow(2,8),a=1;a!=c;)u=A.val&A.position,A.position>>=1,0==A.position&&(A.position=n,A.val=e(A.index++)),p|=(u>0?1:0)*a,a<<=1;f[d++]=r(p),l=d-1,h--;break;case 1:for(p=0,c=Math.pow(2,16),a=1;a!=c;)u=A.val&A.position,A.position>>=1,0==A.position&&(A.position=n,A.val=e(A.index++)),p|=(u>0?1:0)*a,a<<=1;f[d++]=r(p),l=d-1,h--;break;case 2:return w.join("")}if(0==h&&(h=Math.pow(2,m),m++),f[l])v=f[l];else{if(l!==d)return null;v=s+s.charAt(0)}w.push(v),f[d++]=s+v.charAt(0),h--,s=v,0==h&&(h=Math.pow(2,m),m++)}}};return i}();"function"==typeof define&&define.amd?define(function(){return LZString}):"undefined"!=typeof module&&null!=module&&(module.exports=LZString);
+
+    </script>
+    <style>
+
+html, body {
+  height: 100%;
+  padding: 0px 15px 0px 15px;
+  margin: 0px 0px 0px 0px;
+}
+body {
+  display: flex;
+  flex-direction: column;
+  background-color: #fdfdf0;
+}
+.branch {
+  background-color: #F0F0F0;
+  padding: 4px 10px 4px 22px;
+  border: 1px dotted #ebebeb;
+}
+.leaf {
+  background-color: #f7f7f7;
+  padding: 4px 10px 4px 22px;
+  border-bottom: 1px dotted #ebebeb;
+}
+.header {
+
+  margin: none;
+  vertical-align: middle;
+  padding: 15px; 0px; 0px; 0px;
+  border: none;
+  background-color: #fdfdf0;
+  font-family:  Georgia, Cambria, "Times New Roman";
+  color: #6F6F6F;
+  font-size: 19pt;
+
+}
+
+.column {
+  padding: 4px; 20px; 4px; 20px;
+  margin: 5px; 10px; 5px; 10px;
+  border: 1px solid #AAA;
+  background-color: #A0A0BE;
+  color: #FAFAFF;
+  font-size: 11pt;
+}
+
+.selectedcolumn {
+  padding: 4px; 20px; 4px; 20px;
+  margin: 5px; 10px; 5px; 10px;
+  border: 1px solid #AAA;
+  background-color: #BEA0A0;
+  color: #FFFAFA;
+  font-size: 11pt;
+}
+
+span.structitem {
+  color: #050505;
+  font-size: 14px;
+  font-family:Verdana,Arial,Helvetica,sans-serif;
+  font-weight:400;
+}
+
+[contenteditable]:hover:after {
+  content: ' click to edit';
+  font-style: italic;
+  font-size: 12px;
+  font-family: sans-serif;
+  color: #ccc;
+  .text-stroke(0);
+}
+
+[contenteditable]:hover, [contenteditable]:focus {
+  background: #FFFFD3;
+}
+
+[contenteditable]:focus {
+  padding: 5px;
+}
+
+[contenteditable]:focus:after {
+  content: '';
+}
+
+
+table{border-collapse:collapse;padding:15px 0px;margin:15px 0px;}
+th{font-size:12px;background-color:#007dd0;color:#f0f0f0;border: 1px dotted #a1a1a1;}
+td{font-family:Verdana,Arial,Helvetica,sans-serif;font-weight:400;font-size:11px;border: 1px dotted #a1a1a1;}
+tr:nth-child(even){background-color:#f0e7d7}
+#f {
+  padding: 0px 0px 10px 50px;
+}
+
+    </style>
+</head>
+<body>
+<div id="loader" class="header">Loading...</div>
+<div id="header" class="header" style="display:none;"><span id="title">Tree structure browser</span><span id="f"><input type="textbox" id="f_search" name="f_search" value=""><label style="font-size:11pt; font-family:sans-serif; color: #000;"><input type="checkbox" id="f_newsearch" >Add criteria with (or)</label>&nbsp;&nbsp;<input type="button" id="f_submit" value="go">&nbsp;&nbsp;<input type="button" id="f_clearselectedcols" value="clear selected cols"></span><span id="s_save" style="">&nbsp;&nbsp;<input type="button" id="f_save" value="save"></span><br/><span id="s_cols"></span><br/><span id="s_selectedcols"></span></div>
+<div id="main" key="__none" ></div>
+<div id="edit" style="padding: 4px 6px 4px 0px; margin-top: 25px; display: none;">Page title: <input type="textbox" size="12" id="f_title">&nbsp;&nbsp; <input type="button" id="f_replace" value="replace repo"><br><textarea style="width: 100%; margin-top: 10px;" id="f_editarea" rows="20">
+kategória|csoport|téma|osztály|típus
+kateg1|csop1|téma1|osztály1|típus1
+kateg1|csop2|téma1|osztály2|típus2
+kateg2|csop1|téma2|osztály1|típus1
+kateg2|csop2|téma2|osztály2|típus1
+</textarea></div>
+<div id="data" style="display:none;">ᯡࡀ䐫䨬゛lՐᆪ區朹≌暠张㑃晠㍚㲶毞⬩ሠ↋敀঺编榻䧁ဠ </div>
+</body></html>

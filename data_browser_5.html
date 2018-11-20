@@ -46,7 +46,7 @@
         return aChildren;
       },
       buildJSON : function(searchkey = false) {
-        var a_rows = this.sCSVtext.split('\n');
+        var a_rows = this.sCSVText.split('\n');
         this.prepareColumnList(a_rows[0]);
           //  var temp= LZString.decompressFromUTF16($("#data").text());
         var a_colheads = this.aColumnList;
@@ -93,6 +93,7 @@
             }
           }
         } else { // nincs oszlop kiválasztva, csak táblázat
+          var a_tempArray = [];
           for (var i=1, l1=a_rows.length; i<l1; i++ ) {
             a_temp = [];
             if ((a_rows[i].trim().length>0) && ((a_rows[i].indexOf("|")>0) || (a_rows[i].trim().indexOf("\t")>0))) {
@@ -105,9 +106,11 @@
                 for (j=0, l2<this.aColumnList.length; j<l2; j++) {
                   a_temp.push( a_actrow[j].replace(/\t/g,'').trim());
                 }
+                this.debug(JSON.stringify(a_temp)); // itt
                 a_tempArray.push(a_temp);
               }
             }
+            this.debug(JSON.stringify(a_tempArray));
           }
           this.JSONStructure = a_tempArray;
         }
@@ -175,9 +178,10 @@ window.onload = function() {
     $("#loader").hide();
     $("#edit").hide();
     $("#f").show();
-    prepareColumnList();
+    var temp = LZString.decompressFromUTF16($("#data").text());
+    JSONBrowser.init(temp);
+    temp = undefined;
     showSelectableColumns();
-    buildJSON(g_searchkey);
     //showResults();
     putItem("main");
     g_searchkey = false;
@@ -218,41 +222,25 @@ window.onload = function() {
 function showSelectableColumns() {
   var s_temp="";
   var bNone;
-  for (var i=0; i<g_columnlist.length; i++) {
+  for (var i=0; i<JSONBrowser.aSelectedColumnList.length; i++) {
     bNone = true;
-    for (var j=0; j<g_selectedColumns.length; j++) {
-      if (i==g_selectedColumns[j]) {
+    for (var j=0; j<JSONBrowser.aSelectedColumnList.length; j++) {
+      if (i==JSONBrowser.aSelectedColumnList[j]) {
         bNone=false;
       }
     }
     if (bNone) {
-      s_temp = s_temp + "<span class='column'>" + g_columnlist[i] +"</span>";
+      s_temp = s_temp + "<span class='column'>" + JSONBrowser.aColumnList[i] +"</span>";
     }
   }
   $("#s_cols").html(s_temp);
   s_temp = "";
-  for (i=0; i<g_selectedColumns.length; i++) {
-    s_temp= s_temp + "<span class='selectedcolumn'>" + g_columnlist[g_selectedColumns[i]] + "</span>";
+  for (i=0; i<JSONBrowser.aSelectedColumnList.length; i++) {
+    s_temp= s_temp + "<span class='selectedcolumn'>" + JSONBrowser.aColumnList[JSONBrowser.aSelectedColumnList[i]] + "</span>";
   }
   $("#s_selectedcols").html(s_temp);
 }
 
-function prepareColumnList() {
-    var temp = LZString.decompressFromUTF16($("#data").text());
-    var a_rows = temp.split('\n');
-    if (a_rows.length>0) {
-      if (a_rows[0].indexOf("|")>0) {
-        g_columnlist = a_rows[0].split('|');
-      } else {
-        g_columnlist = a_rows[0].split('\t');
-      }
-      for (var i=0; i<g_columnlist.length;i++) {
-        g_columnlist[i] = g_columnlist[i].replace(/\t/g, '').trim();
-      }
-    } else {
-      g_columnlist = {};
-    }
-}
 
 // ucs-2 string to base64 encoded ascii
 function utoa(str) {
@@ -263,10 +251,12 @@ function atou(str) {
     return decodeURIComponent(escape(window.atob(str)));
 }
 
-function getDivID(key, direction = JSONBrowser.bEncode) {
+function getDivID(key, direction = true) {
   //ID_cleanbase64
+  //true: encode
+  //false: decode
   var sStr;
-  if (direction == JSONBrowser.bEncode) {
+  if (direction == true) {
     sStr = utoa(key);
     sStr = sStr.replace(/\+/g, '-').replace(/\//g, '_').replace(/\=+$/, '');
     return "ID_" + sStr; // encode
@@ -280,93 +270,6 @@ function getDivID(key, direction = JSONBrowser.bEncode) {
   }
 }
 
-function buildJSON(searchkey = false) {
-
-    var i_depth = g_selectedColumns.length;
-    var temp= LZString.decompressFromUTF16($("#data").text());
-    var a_rows = temp.split('\n');
-    temp=undefined;
-    var a_colheads = g_columnlist;
-    var t_key, a_actrow, t_obj;
-    var fArrCons = [].constructor;
-    var a_tempArray;
-
-    if (i_depth>0) { // van struktúraképző elem kiválasztva
-      if ((searchkey != false) && ($("#f_newsearch").is(":checked"))) {
-        a_tempArray = g_jsondata;
-      } else {
-        a_tempArray = {};
-      }
-      for (var i=1; i<a_rows.length; i++ ) {
-
-        if ((a_rows[i].trim().length>0) && ((a_rows[i].indexOf("|")>0) || (a_rows[i].trim().indexOf("\t")>0))) {
-          if ((searchkey == false) || (a_rows[i].indexOf(searchkey)>-1)) {
-            if (a_rows[i].indexOf("|")>0) {
-              a_actrow = a_rows[i].split("|");
-            } else {
-              a_actrow = a_rows[i].split("\t");
-            }
-
-            t_obj = a_tempArray;
-
-            for (var j=0; j<i_depth; j++) {
-              t_key = a_actrow[g_selectedColumns[j]].replace(/\t/g, '').trim();
-
-              if (t_key == "") {
-                t_key = JSONBrowser.displayTextForEmptyEntry;
-              }
-              if (t_obj.hasOwnProperty(t_key)){
-                t_obj=t_obj[t_key];
-              } else {
-                if (j==i_depth-1) {
-                  t_obj[t_key] = [];
-                } else {
-                  t_obj[t_key] = {};
-                }
-                t_obj=t_obj[t_key];
-              }
-            }
-
-            var a_temp2 = new Array(a_colheads.length);
-
-            for (j=0; j<a_colheads.length; j++) {
-              a_temp2[j] = a_actrow[j].replace(/\t/g, '').trim();
-            }
-            t_obj.push(a_temp2);
-          }
-        }
-      }
-    } else { // nincs oszlop kiválasztva, csak táblázat
-      if ((searchkey != false) && ($("#f_newsearch").is(":checked"))) {
-        a_tempArray = g_jsondata;
-      }
-      else {
-        a_tempArray = [];
-      }
-      var a_temp = [];
-
-      for (var i=1; i<a_rows.length; i++ ) {
-        a_temp = [];
-        if ((a_rows[i].trim().length>0) && ((a_rows[i].indexOf("|")>0) || (a_rows[i].trim().indexOf("\t")>0))) {
-
-          if ((searchkey == false) || (a_rows[i].indexOf(searchkey)>-1)) {
-            if (a_rows[i].indexOf("|")>0) {
-              a_actrow = a_rows[i].split("|");
-            } else {
-              a_actrow = a_rows[i].split("\t");
-            }
-            for (j=0; j<a_colheads.length; j++) {
-              a_temp.push( a_actrow[j].replace(/\t/g,'').trim());
-            }
-            a_tempArray.push(a_temp);
-          }
-        }
-      }
-    }
-    g_jsondata = a_tempArray;
-
-}
-
 function putItem(sContainerID) {
 
   var key = $('#' + sContainerID).attr("key");
@@ -376,10 +279,10 @@ function putItem(sContainerID) {
     var aChildren = JSONBrowser.getChildren(key, 2);
     if (aChildren) {
       out = "<table><tr>";
-      for (i=0; i<g_columnlist.length; i++) { out = out + "<th>" + g_columnlist[i] +"</th>";  }
+      for (i=0; i<JSONBrowser.aColumnList.length; i++) { out = out + "<th>" + JSONBrowser.aColumnList[i] +"</th>";  }
       for (i=0, l=aChildren.length; i<l; i++) {
         out = out + "</tr><tr>";
-        for (j=0; j<g_columnlist.length; j++) { out = out + "<td><span class='cell'>" + aChildren[i][j] + "</span></td>"; }
+        for (j=0; j<JSONBrowser.aColumnList.length; j++) { out = out + "<td><span class='cell'>" + aChildren[i][j] + "</span></td>"; }
       }
       out = out +"</tr></table>";
       $('#' + sContainerID).append($('<div id="'+sContainerID+'_table" class="leaf" key="'+key+'_table">'));
@@ -400,26 +303,26 @@ function putItem(sContainerID) {
 $(document).on('click', ".selectedcolumn", function(e) {
   var sColumn = $(this).text();
   var aTemp = [];
-  for (var i=0, j=g_selectedColumns.length; i<j; i++) {
-    if (g_columnlist[g_selectedColumns[i]] == sColumn) {
+  for (var i=0, j=JSONBrowser.aSelectedColumnList.length; i<j; i++) {
+    if (JSONBrowser.aColumnList[JSONBrowser.aSelectedColumnList[i]] == sColumn) {
     } else {
-      aTemp.push(g_selectedColumns[i]);
+      aTemp.push(JSONBrowser.aSelectedColumnList[i]);
     }
   }
-  g_selectedColumns = aTemp;
+  JSONBrowser.aSelectedColumnList = aTemp;
   $("#main").empty();
   g_jsondata = undefined;
   g_jsondata = [];
+  JSONBrowser.buildJSON();
   showSelectableColumns();
-  buildJSON(g_searchkey);
   putItem("main");
 });
 
 $(document).on("click", ".column", function(e) {
   var t_string = $(this).text();
-  for (var i=0, j=g_columnlist.length; i<j; i++) {
-    if (g_columnlist[i] == t_string) {
-      g_selectedColumns.push(i);
+  for (var i=0, j=JSONBrowser.aColumnList.length; i<j; i++) {
+    if (JSONBrowser.aColumnList[i] == t_string) {
+      JSONBrowser.aSelectedColumnList.push(i);
     }
   }
   $("#title").trigger("click");  // not optimal - put in separate function

@@ -7,16 +7,18 @@
     <script src="https://code.jquery.com/jquery-3.3.1.min.js" integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8=" crossorigin="anonymous"></script>
     <script>
 
-    var g_jsondata;
-    var g_searchkey;
-    var g_columnlist = [];
-    var g_selectedColumns = [];
+//    var g_jsondata;
+//    var g_searchkey;
+//    var g_columnlist = [];
+//    var g_selectedColumns = [];
 
     var JSONBrowser = {
       displayTextForEmptyEntry : "__none",
       bEncode : true,
       bDecode : false,
       logLevel : 1,
+      sPrimarySplitChar : "\t",
+      sSecondarySplitChar : ";",
       aColumnList : [],
       aSelectedColumnList : [],
       sCSVText : undefined,
@@ -59,15 +61,11 @@
           for (var i=1, l1=a_rows.length; i<l1; i++ ) {
             if ((a_rows[i].trim().length>0) && ((a_rows[i].indexOf("|")>0) || (a_rows[i].trim().indexOf("\t")>0))) {
               if ((searchkey == false) || (a_rows[i].indexOf(searchkey)>-1)) {
-                if (a_rows[i].indexOf("|")>0) {
-                  a_actrow = a_rows[i].split("|");
-                } else {
-                  a_actrow = a_rows[i].split("\t");
-                }
+                a_actrow = a_rows[i].split(sPrimarySplitChar);
                 t_obj = this.JSONStructure;
 
                 for (var j=0; j<iNumCols; j++) {
-                  t_key = a_actrow[aSelectedColumnList[j]].replace(/\t/g, '').trim();
+                  t_key = a_actrow[this.aSelectedColumnList[j]].trim();
 
                   if (t_key == "") {
                     t_key = this.displayTextForEmptyEntry;
@@ -86,7 +84,7 @@
                 var a_temp2 = new Array(this.aColumnList.length);
 
                 for (j=0, l2=this.aColumnList.length; j<l2; j++) {
-                  a_temp2[j] = a_actrow[j].replace(/\t/g, '').trim();
+                  a_temp2[j] = a_actrow[j].trim();
                 }
                 t_obj.push(a_temp2);
               }
@@ -96,34 +94,26 @@
           var a_tempArray = [];
           for (var i=1, l1=a_rows.length; i<l1; i++ ) {
             a_temp = [];
-            if ((a_rows[i].trim().length>0) && ((a_rows[i].indexOf("|")>0) || (a_rows[i].trim().indexOf("\t")>0))) {
+            if ((a_rows[i].trim().length>0) && (a_rows[i].indexOf(this.sPrimarySplitChar)>0)) {
               if ((searchkey == false) || (a_rows[i].indexOf(searchkey)>-1)) {
-                if (a_rows[i].indexOf("|")>0) {
-                  a_actrow = a_rows[i].split("|");
-                } else {
-                  a_actrow = a_rows[i].split("\t");
+                a_actrow = a_rows[i].split(this.sPrimarySplitChar);
+                for (j=0, l2=this.aColumnList.length; j<l2; j++) {
+                  a_temp.push( a_actrow[j].trim());
                 }
-                for (j=0, l2<this.aColumnList.length; j<l2; j++) {
-                  a_temp.push( a_actrow[j].replace(/\t/g,'').trim());
-                }
-                this.debug(JSON.stringify(a_temp)); // itt
                 a_tempArray.push(a_temp);
               }
             }
-            this.debug(JSON.stringify(a_tempArray));
           }
           this.JSONStructure = a_tempArray;
         }
       },
-
+      clearSelectedColumnList : function() {
+        this.aSelectedColumnList = [];
+      },
       prepareColumnList : function(firstLineCSV) {
-        if (firstLineCSV.indexOf("|")>0) {
-          this.aColumnList = firstLineCSV.split('|');
-        } else {
-          this.aColumnList = firstLineCSV.split('\t');
-        }
+        this.aColumnList = firstLineCSV.split(this.sPrimarySplitChar);
         for (var i=0; i<this.aColumnList.length;i++) {
-          this.aColumnList[i] = this.aColumnList[i].replace(/\t/g, '').trim();
+          this.aColumnList[i] = this.aColumnList[i].trim();
         }
       },
 
@@ -142,7 +132,7 @@
         }
       },
       addBranch : function(path, value) {
-        var oData = g_jsondata;
+
 
       }
 
@@ -157,72 +147,75 @@ window.onload = function() {
   var oURL=new URL(window.location.href);
   var page=oURL.searchParams.get("page");
   if(page&&page=="edit") {
-    $("#main").hide();
-    $("#header").hide();
-    $("#loader").text("Edit");
-    $("#edit").show();
-    $("#f").hide();
+    displayEditPage();
   } else {
-    $("#main").show();
-    $("#header").show();
-    $("#loader").hide();
-    $("#edit").hide();
-    $("#f").show();
-    $("#title").trigger('click');
+    displayMainPage();
   }
 
+  // listeners
   $("#title").click(function() {
-    $("#main").show();
-    $("#main").empty();
-    $("#header").show();
-    $("#loader").hide();
-    $("#edit").hide();
-    $("#f").show();
-    var temp = LZString.decompressFromUTF16($("#data").text());
-    JSONBrowser.init(temp);
-    temp = undefined;
-    showSelectableColumns();
-    //showResults();
-    putItem("main");
-    g_searchkey = false;
-  });
-
-  $("#f_submit").click(function() {
-    var search = $("#f_search").val();
-    search = search.trim();
-    if (search.length>0) {
-      g_searchkey = search;
-      $("#title").trigger('click');
-    }
+    displayMainPage();
   });
 
   $("#f_replace").click(function() {
-    g_jsondata = {}
+// itt tartok
     $("#title").text($("#f_title").val());
+
+    if ($('input[name=separator]:checked').val()=="tab") {
+      console.log("separator: tab");
+      JSONBrowser.sPrimarySplitChar = "\t";
+    } else {
+      console.log("separator: "+ $("#sep_char").val());
+      JSONBrowser.sPrimarySplitChar = $("#sep_char").val().trim();
+
+    }
+    JSONBrowser.sSecondarySplitChar = undefined;
+    if ($('input[name=sec_sep]:checked').val()) {
+      console.log("secondary separator: "+$("#sec_sep_char").val());
+      JSONBrowser.sSecondarySplitChar = $("#sec_sep_char").val();
+    }
+
     $("#s_save").show();
     $("#data").text(LZString.compressToUTF16($("#f_editarea").val()));
-    $("#f").show();
-    $("#title").trigger('click');
+    displayMainPage();
   });
 
   $("#f_save").click(function() {
     $("#main").hide();
     $("#f").hide();
+    var node = document.doctype;
+    var html = "<!DOCTYPE "
+         + node.name
+         + (node.publicId ? ' PUBLIC "' + node.publicId + '"' : '')
+         + (!node.publicId && node.systemId ? ' SYSTEM' : '')
+         + (node.systemId ? ' "' + node.systemId + '"' : '')
+         + '>';
+    html = html + document.documentElement.outerHTML;
+    //console.log(html + document.documentElement.outerHTML);
+    var element = document.createElement('a');
+    element.setAttribute('href', 'data:text/plain;charset=utf-8,' + encodeURIComponent(html));
+    element.setAttribute('download', 'data_browser.html');
+
+    element.style.display = 'none';
+    document.body.appendChild(element);
+
+    element.click();
+
+    document.body.removeChild(element);
     $("#s_save").hide();
   });
 
   $("#f_clearselectedcols").click(function() {
     $("#main").empty();
-    g_selectedColumns = [];
-    showSelectableColumns();
-    $("#title").trigger('click');
+    JSONBrowser.clearSelectedColumnList();
+    displayMainPage();
   });
 }
 
 function showSelectableColumns() {
   var s_temp="";
   var bNone;
-  for (var i=0; i<JSONBrowser.aSelectedColumnList.length; i++) {
+  for (var i=0; i<JSONBrowser.aColumnList.length; i++) {
     bNone = true;
     for (var j=0; j<JSONBrowser.aSelectedColumnList.length; j++) {
       if (i==JSONBrowser.aSelectedColumnList[j]) {
@@ -239,8 +232,30 @@ function showSelectableColumns() {
     s_temp= s_temp + "<span class='selectedcolumn'>" + JSONBrowser.aColumnList[JSONBrowser.aSelectedColumnList[i]] + "</span>";
   }
   $("#s_selectedcols").html(s_temp);
+
 }
 
+function displayMainPage() {
+  $("#main").show();
+  $("#main").empty();
+  $("#header").show();
+  $("#loader").hide();
+  $("#edit").hide();
+  $("#f").show();
+  var temp = LZString.decompressFromUTF16($("#data").text());
+  JSONBrowser.init(temp);
+  temp = undefined;
+  showSelectableColumns();
+  putItem("main");
+}
+
+function displayEditPage() {
+  $("#main").hide();
+  $("#header").hide();
+  $("#loader").text("Edit");
+  $("#edit").show();
+  $("#f").hide();
+}
 
 // ucs-2 string to base64 encoded ascii
 function utoa(str) {
@@ -311,8 +326,6 @@ $(document).on('click', ".selectedcolumn", function(e) {
   }
   JSONBrowser.aSelectedColumnList = aTemp;
   $("#main").empty();
-  g_jsondata = undefined;
-  g_jsondata = [];
   JSONBrowser.buildJSON();
   showSelectableColumns();
   putItem("main");
@@ -325,7 +338,7 @@ $(document).on("click", ".column", function(e) {
       JSONBrowser.aSelectedColumnList.push(i);
     }
   }
-  $("#title").trigger("click");  // not optimal - put in separate function
+  displayMainPage();
 });
 
 $(document).on("click", ".leaf, .branch", function(e) {
@@ -508,14 +521,35 @@ tr:nth-child(even){background-color:#f0e7d7}
 </head>
 <body>
 <div id="loader" class="header">Loading...</div>
-<div id="header" class="header" style="display:none;"><span id="title">Tree structure browser</span><span id="f"><input type="textbox" id="f_search" name="f_search" value=""><label style="font-size:11pt; font-family:sans-serif; color: #000;"><input type="checkbox" id="f_newsearch" >Add criteria with (or)</label>&nbsp;&nbsp;<input type="button" id="f_submit" value="go">&nbsp;&nbsp;<input type="button" id="f_clearselectedcols" value="clear selected cols"></span><span id="s_save" style="">&nbsp;&nbsp;<input type="button" id="f_save" value="save"></span><br/><span id="s_cols"></span><br/><span id="s_selectedcols"></span></div>
+<div id="header" class="header" style="display:none;"><span id="title">Tree structure browser</span>
+  <span id="f">
+    <!--input type="textbox" id="f_search" name="f_search" value=""><label style="font-size:11pt; font-family:sans-serif; color: #000;">
+    <input type="checkbox" id="f_newsearch" >Add criteria with (or)</label>&nbsp;&nbsp;
+    <input type="button" id="f_submit" value="go">&nbsp;&nbsp;
+    <input type="button" id="f_clearselectedcols" value="clear selected cols">
+  -->
+  </span>
+    <span id="s_save" style="">&nbsp;&nbsp;<input type="button" id="f_save" value="save"></span><br/>
+    <span id="s_cols"></span><br/><span id="s_selectedcols"></span></div>
 <div id="main" key="__none" ></div>
-<div id="edit" style="padding: 4px 6px 4px 0px; margin-top: 25px; display: none;">Page title: <input type="textbox" size="12" value="sd" id="f_title">&nbsp;&nbsp; <input type="button" id="f_replace" value="replace repo"><br><textarea style="width: 100%; margin-top: 10px;" id="f_editarea" rows="20">
-kategória|csoport|téma|osztály|típus
-kateg1|csop1|téma1|osztály1|típus1
-kateg1|csop2|téma1|osztály2|típus2
-kateg2|csop1|téma2|osztály1|típus1
-kateg2|csop2|téma2|osztály2|típus1
-</textarea></div>
+<div id="edit" style="padding: 4px 6px 4px 0px; margin-top: 25px; display: none;">
+  Page title: <input type="textbox" size="12" value="sd" id="f_title"> &nbsp; &nbsp;
+  Separator: <input type="radio" id="tab" value="tab" name="separator" checked>
+  <label for="tab">tab</label> &nbsp;&nbsp;
+  <input type="radio" id="other" value="other" name="separator">
+  <input type="textbox" size=2 length=1 id="sep_char" name="sep_char" value=";"><br>
+  <input type="checkbox" size="2" id="sec_sep" name="sec_sep" >
+  <label for="sec_sep">Multiple entries in cells, sep char: </label> &nbsp;&nbsp;
+  <input type="textbox" size="2" length="1" id="sec_sep_char" name="sec_sep_char" value="|"
+  <br>
+  <textarea style="width: 100%; margin-top: 10px;" id="f_editarea" rows="20">
+kategória;csoport;téma;osztály;típus
+kateg1;csop1;téma1;osztály1;típus1
+kateg1;csop2;téma1;osztály2;típus2
+kateg2;csop1;téma2;osztály1;típus1
+kateg2;csop2;téma2;osztály2;típus1
+</textarea><br>
+  <input type="button" id="f_replace" value="replace repo">
+</div>
 <div id="data" style="display:none;">ᯡࡀ䐫䨬゛lՐᆪ區朹≌暠张㑃晠㍚㲶毞⬩ሠ↋敀঺编榻䧁ဠ </div>
 </body></html>

@@ -48,70 +48,80 @@
         return aChildren;
       },
       buildJSON : function(searchkey = false) {
-        var a_rows = this.sCSVText.split('\n');
-        this.prepareColumnList(a_rows[0]);
+        var pattern = new RegExp( // regular expression to parse the CSV values.
+          ( // Delimiters:
+            "(\\" + this.sPrimarySplitChar + "|\\r?\\n|\\r|^)" +
+            // Quoted fields.
+            "(?:\"([^\"]*(?:\"\"[^\"]*)*)\"|" +
+            // Standard fields.
+            "([^\"\\" + this.sPrimarySplitChar + "\\r\\n]*))"
+          ), "gi"
+        );
+        aJSON = [[]];
+        if (this.sCSVText!="") {
+          while (matches = pattern.exec(this.sCSVText)) {
+            if (!matches[2] && !matches[3]) {
+              break;
+            }
+            if (matches.index == 0 && matches[1]) {
+              aJSON[ aJSON.length - 1 ].push( "" );
+            }
+            if (matches[1].length && matches[1] !== this.sPrimarySplitChar) {
+              aJSON.push([]);
+            }
+            aJSON[aJSON.length - 1].push(matches[2] ? matches[2].replace(new RegExp( "\"\"", "g" ), "\"") : matches[3]);
+          }
+        }
+
+
+        this.prepareColumnList(aJSON[0]);
           //  var temp= LZString.decompressFromUTF16($("#data").text());
         var a_colheads = this.aColumnList;
         var t_key, a_actrow, t_obj, a_temp, l1, l2;
-        var iNumCols;
+        var iNumCols, i, j;
         iNumCols = this.aSelectedColumnList.length;
 
         if (iNumCols>0) { // van struktúraképző elem kiválasztva
           this.JSONStructure = {};
-          for (var i=1, l1=a_rows.length; i<l1; i++ ) {
-            if ((a_rows[i].trim().length>0) && (a_rows[i].indexOf(this.sPrimarySplitChar)>0)) {
-              if ((searchkey == false) || (a_rows[i].indexOf(searchkey)>-1)) {
-                a_actrow = a_rows[i].split(this.sPrimarySplitChar);
-                t_obj = this.JSONStructure;
-
-                for (var j=0; j<iNumCols; j++) {
-                  t_key = a_actrow[this.aSelectedColumnList[j]].trim();
-
-                  if (t_key == "") {
-                    t_key = this.displayTextForEmptyEntry;
-                  }
-                  if (t_obj.hasOwnProperty(t_key)){
-                    t_obj=t_obj[t_key];
-                  } else {
-                    if (j==iNumCols-1) {
-                      t_obj[t_key] = [];
-                    } else {
-                      t_obj[t_key] = {};
-                    }
-                    t_obj=t_obj[t_key];
-                  }
+          for (i=1, l1=aJSON.length; i<l1; i++) {
+            t_obj = this.JSONStructure;
+            for (j=0; j<iNumCols; j++ ) {
+              t_key = aJSON[i][this.aSelectedColumnList[j]].trim();
+              if (t_key == "") {
+                t_key = this.displayTextForEmptyEntry;
+              }
+              if (t_obj.hasOwnProperty(t_key)){
+                t_obj=t_obj[t_key];
+              } else {
+                if (j==iNumCols-1) {
+                  t_obj[t_key] = [];
+                } else {
+                  t_obj[t_key] = {};
                 }
-                var a_temp2 = new Array(this.aColumnList.length);
-
-                for (j=0, l2=this.aColumnList.length; j<l2; j++) {
-                  a_temp2[j] = a_actrow[j].trim();
-                }
-                t_obj.push(a_temp2);
+                t_obj=t_obj[t_key];
               }
             }
+            var a_temp2 = new Array(this.aColumnList.length);
+
+            for (j=0, l2=this.aColumnList.length; j<l2; j++) {
+              a_temp2[j] = aJSON[i][j].trim();
+            }
+            t_obj.push(a_temp2);
           }
         } else { // nincs oszlop kiválasztva, csak táblázat
-          var a_tempArray = [];
-          for (var i=1, l1=a_rows.length; i<l1; i++ ) {
-            a_temp = [];
-            if ((a_rows[i].trim().length>0) && (a_rows[i].indexOf(this.sPrimarySplitChar)>0)) {
-              if ((searchkey == false) || (a_rows[i].indexOf(searchkey)>-1)) {
-                a_actrow = a_rows[i].split(this.sPrimarySplitChar);
-                for (j=0, l2=this.aColumnList.length; j<l2; j++) {
-                  a_temp.push( a_actrow[j].trim());
-                }
-                a_tempArray.push(a_temp);
-              }
-            }
+          a_temp = [];
+          for (i=1, l1=aJSON.length; i<l1; i++) {
+            a_temp.push(aJSON[i]);
           }
-          this.JSONStructure = a_tempArray;
+          this.JSONStructure = a_temp;
         }
+        console.log(JSON.stringify(this.JSONStructure));
       },
       clearSelectedColumnList : function() {
         this.aSelectedColumnList = [];
       },
-      prepareColumnList : function(firstLineCSV) {
-        this.aColumnList = firstLineCSV.split(this.sPrimarySplitChar);
+      prepareColumnList : function(aFirstLine) {
+        this.aColumnList = aFirstLine;
         for (var i=0; i<this.aColumnList.length;i++) {
           this.aColumnList[i] = this.aColumnList[i].trim();
         }
@@ -495,6 +505,9 @@ span.structitem {
   font-size: 14px;
   font-family:Verdana,Arial,Helvetica,sans-serif;
   font-weight:400;
+}
+span.cell {
+  white-space: pre-wrap;
 }
 
 [contenteditable]:hover:after {

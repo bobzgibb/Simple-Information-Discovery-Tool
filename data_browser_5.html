@@ -73,42 +73,37 @@
           }
         }
 
-
+          // create the list of columns from the first line of CSV data
         this.prepareColumnList(aJSON[0]);
           //  var temp= LZString.decompressFromUTF16($("#data").text());
         var a_colheads = this.aColumnList;
-        var t_key, a_actrow, t_obj, a_temp, l1, l2;
-        var iNumCols, i, j;
+        var t_key, t_key2, a_actrow, t_obj, a_temp, aActRow, a_temp3, l1, l2;
+        var aListOfAffectedLeaves, aLinesNeeded, aLinesInProgress;
+        var iNumCols, i, j, k;
         iNumCols = this.aSelectedColumnList.length;
 
-        if (iNumCols>0) { // van struktúraképző elem kiválasztva
+        if (iNumCols>0) { // tree structure + table view at the leaves
           this.JSONStructure = {};
           for (i=1, l1=aJSON.length; i<l1; i++) {
-            t_obj = this.JSONStructure;
-            for (j=0; j<iNumCols; j++ ) {
-              t_key = aJSON[i][this.aSelectedColumnList[j]].trim();
-              if (t_key == "") {
-                t_key = this.displayTextForEmptyEntry;
-              }
-              if (t_obj.hasOwnProperty(t_key)){
-                t_obj=t_obj[t_key];
-              } else {
-                if (j==iNumCols-1) {
-                  t_obj[t_key] = [];
-                } else {
-                  t_obj[t_key] = {};
-                }
-                t_obj=t_obj[t_key];
-              }
-            }
-            var a_temp2 = new Array(this.aColumnList.length);
 
+            // this is the line, which is to be inserted into the table at the leaves
+            aActRow = new Array(this.aColumnList.length);
             for (j=0, l2=this.aColumnList.length; j<l2; j++) {
-              a_temp2[j] = aJSON[i][j].trim();
+              aActRow[j] = aJSON[i][j].trim();
             }
-            t_obj.push(a_temp2);
+
+            // generate the list of affected branches/leaves
+            aListOfAffectedLeaves = new Array();
+            for (j=0; j<iNumCols; j++) {
+              t_key = aJSON[i][this.aSelectedColumnList[j]].trim();
+              aListOfAffectedLeaves.push(t_key.trim().split(this.sSecondarySplitChar));
+            }
+
+            //walk the affected branches/leaves and append the actual row
+            this.handleNestedLines(this.JSONStructure, aListOfAffectedLeaves, 0,  aActRow);
+
           }
-        } else { // nincs oszlop kiválasztva, csak táblázat
+        } else { // table view only
           a_temp = [];
           for (i=1, l1=aJSON.length; i<l1; i++) {
             a_temp.push(aJSON[i]);
@@ -116,6 +111,30 @@
           this.JSONStructure = a_temp;
         }
         console.log(JSON.stringify(this.JSONStructure));
+      },
+      handleNestedLines : function(t_obj, aListOfAffectedLeaves, iActCol, aActRow) {
+        var i, t_key;
+        for (i=0; i<aListOfAffectedLeaves[iActCol].length; i++) {
+          t_key = aListOfAffectedLeaves[iActCol][i].trim();
+          if (t_key == "") {
+            t_key = this.displayTextForEmptyEntry;
+          }
+          if (t_obj.hasOwnProperty(t_key)){
+            if (this.isArray(t_obj[t_key])) {
+              t_obj[t_key].push(aActRow);
+            } else {
+              this.handleNestedLines(t_obj[t_key], aListOfAffectedLeaves, iActCol+1, aActRow);
+            }
+          } else {
+            if (iActCol==aListOfAffectedLeaves.length-1) {
+              t_obj[t_key] = [];
+              t_obj[t_key].push(aActRow);
+            } else {
+              t_obj[t_key] = {};
+              this.handleNestedLines(t_obj[t_key], aListOfAffectedLeaves, iActCol+1, aActRow);
+            }
+          }
+        }
       },
       clearSelectedColumnList : function() {
         this.aSelectedColumnList = [];
@@ -178,7 +197,6 @@ window.onload = function() {
   });
 
   $("#f_replace").click(function() {
-// itt tartok
     $("#title").text($("#f_title").val());
 
     if ($('input[name=separator]:checked').val()=="tab") {
@@ -223,11 +241,13 @@ window.onload = function() {
     $("#s_save").hide();
   });
 
+/*
   $("#f_clearselectedcols").click(function() {
     $("#main").empty();
     JSONBrowser.clearSelectedColumnList();
     displayMainPage();
   });
+  */
 }
 
 function showSelectableColumns() {

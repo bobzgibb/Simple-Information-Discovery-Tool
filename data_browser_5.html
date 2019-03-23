@@ -21,6 +21,8 @@
       sSecondarySplitChar : ";",
       aColumnList : [],
       aSelectedColumnList : [],
+      aSelectableColumnList : [],
+      aMultipleInstancesColumnList : [],
       sCSVText : undefined,
       JSONStructure : undefined,
 
@@ -75,6 +77,7 @@
 
           // create the list of columns from the first line of CSV data
         this.prepareColumnList(aJSON[0]);
+        this.prepareSelectableColumnList();
           //  var temp= LZString.decompressFromUTF16($("#data").text());
         var a_colheads = this.aColumnList;
         var t_key, t_key2, a_actrow, t_obj, a_temp, aActRow, a_temp3, l1, l2;
@@ -96,6 +99,11 @@
             aListOfAffectedLeaves = new Array();
             for (j=0; j<iNumCols; j++) {
               t_key = aJSON[i][this.aSelectedColumnList[j]].trim();
+              if (t_key.indexOf(this.sSecondarySplitChar)>0) {
+                // this column can be selected multiple Times
+                this.aMultipleInstancesColumnList.push(this.aSelectedColumnList[j]);
+                console.log("multiple");
+              }
               aListOfAffectedLeaves.push(t_key.trim().split(this.sSecondarySplitChar));
             }
 
@@ -111,6 +119,8 @@
           this.JSONStructure = a_temp;
         }
         console.log(JSON.stringify(this.JSONStructure));
+        console.log(JSON.stringify(this.aSelectableColumnList));
+        console.log(JSON.stringify(this.aMultipleInstancesColumnList));
       },
       handleNestedLines : function(t_obj, aListOfAffectedLeaves, iActCol, aActRow) {
         var i, t_key;
@@ -145,7 +155,27 @@
           this.aColumnList[i] = this.aColumnList[i].trim();
         }
       },
-
+      prepareSelectableColumnList : function() {
+        this.aSelectableColumnList = [];
+        for (var i=0; i<this.aColumnList.length; i++) {
+          bNone = true;
+          for (var j=0; j<this.aSelectedColumnList.length; j++) {
+            if (i==this.aSelectedColumnList[j]) {
+              bNone=false;
+            }
+          }
+          if (bNone == false) {
+            for (var j=0; j<this.aMultipleInstancesColumnList.length; j++) {
+              if (i==this.aMultipleInstancesColumnList[j]) {
+                bNone = true;
+              }
+            }
+          }
+          if (bNone) {
+            this.aSelectableColumnList.push(i);
+          }
+        }
+      },
       getBranch : function(path) {
         var aPath, i;
         if (typeof path == "string" || path instanceof String) {
@@ -161,8 +191,6 @@
         }
       },
       addBranch : function(path, value) {
-
-
       },
       getParams : function() {
         var aParams;
@@ -251,22 +279,14 @@ window.onload = function() {
 }
 
 function showSelectableColumns() {
-  var s_temp="";
+  var s_temp;
   var bNone;
   s_temp = "";
   for (i=0; i<JSONBrowser.aSelectedColumnList.length; i++) {
     s_temp= s_temp + "<span class='selectedcolumn'>" + JSONBrowser.aColumnList[JSONBrowser.aSelectedColumnList[i]] + "</span>";
   }
-  for (var i=0; i<JSONBrowser.aColumnList.length; i++) {
-    bNone = true;
-    for (var j=0; j<JSONBrowser.aSelectedColumnList.length; j++) {
-      if (i==JSONBrowser.aSelectedColumnList[j]) {
-        bNone=false;
-      }
-    }
-    if (bNone) {
-      s_temp = s_temp + "<span class='column'>" + JSONBrowser.aColumnList[i] +"</span>";
-    }
+  for (var i=0; i<JSONBrowser.aSelectableColumnList.length; i++) {
+    s_temp = s_temp + "<span class='column'>" + JSONBrowser.aColumnList[JSONBrowser.aSelectableColumnList[i]] +"</span>";
   }
   $("#header_cols").html(s_temp);
 }
@@ -283,10 +303,10 @@ function displayMainPage() {
   JSONBrowser.sPrimarySplitChar = params[0];
   JSONBrowser.sSecondarySplitChar = params[1];
   JSONBrowser.init(temp);
+  JSONBrowser.prepareSelectableColumnList();
   temp = undefined;
   showSelectableColumns();
   putItem("main");
-
 }
 
 function displayEditPage() {

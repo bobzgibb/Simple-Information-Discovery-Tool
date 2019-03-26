@@ -378,8 +378,10 @@ function putItem(sContainerID) {
 $(document).on('click', ".selectedcolumn", function(e) {
   var sColumn = $(this).text();
   var aTemp = [];
+  var bStillToBeRemoved = true;
   for (var i=0, j=JSONBrowser.aSelectedColumnList.length; i<j; i++) {
-    if (JSONBrowser.aColumnList[JSONBrowser.aSelectedColumnList[i]] == sColumn) {
+    if (bStillToBeRemoved && (JSONBrowser.aColumnList[JSONBrowser.aSelectedColumnList[i]] == sColumn)) {
+      bStillToBeRemoved = false;
     } else {
       aTemp.push(JSONBrowser.aSelectedColumnList[i]);
     }
